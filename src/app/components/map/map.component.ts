@@ -18,17 +18,14 @@ export class MapComponent implements OnInit {
   map!: mapboxgl.Map;
   places: Response = {};
   markersMb: { [id:string]: mapboxgl.Marker } = {};
-  
-  
+    
   constructor( 
     private http: HttpClient,
     private webSocketService:WebsocketService 
   ) { }
 
   ngOnInit(): void {
-    this.http.get<Response>(`${environment.url}/map`).subscribe( places => {
-      console.log(places);
-      
+    this.http.get<Response>(`${environment.url}/map`).subscribe( places => {      
       this.places = places;
       this.createMap();
     });
@@ -36,22 +33,21 @@ export class MapComponent implements OnInit {
   }
 
   listenSockets() {
-    //marcador-nuevo
+    //new-market
     this.webSocketService.listen('new-market').subscribe( (markert:any) =>  this.addMarcador(markert) );
 
-    //se mueve
+    //move-market
+    this.webSocketService.listen('move-market').subscribe( ( marker : any ) => this.markersMb[marker.id].setLngLat([ marker.lng, marker.lat ]));
 
-
-    //borrar
+    //remove-marker
     this.webSocketService.listen('remove-marker').subscribe( ( id : any ) => {
       this.markersMb[id].remove();
       delete this.markersMb[id];
     });
-
-
   }
 
   createMap() {
+
     (mapboxgl as any).accessToken = 'pk.eyJ1IjoiYWd1ZXJyZXJvMTk5NCIsImEiOiJjbDRqMWEzZzUwMDNpM2pwMTd4ZjlidGd0In0.euIoXepiB-X_P36Zk_5iyA';
     this.map = new mapboxgl.Map({
       container: 'map', // container ID
@@ -60,13 +56,10 @@ export class MapComponent implements OnInit {
       zoom: 15.8 // starting zoom
     });
 
-    for(  const [key,mark] of Object.entries(this.places) ) {
-      // console.log(mark);
+    for( const [key,mark] of Object.entries(this.places) ) {
       this.addMarcador( mark );
     }
-
   }
-
 
   addMarcador( mark:Place ) {
     
@@ -95,15 +88,19 @@ export class MapComponent implements OnInit {
     markert.on('drag', () => {
       const lngLat = markert.getLngLat();
       //TODO: create event to emit the coords 
+      const newMarket = {
+        id: mark.id,
+        ...lngLat
+      };
+      this.webSocketService.sendEmit('move-market', newMarket );
     });
 
     btnRemove.addEventListener('click', () => {
-      
+
       markert.remove();
-
       this.webSocketService.sendEmit('remove-marker', mark.id);
+    
     });
-
     this.markersMb[mark.id] = markert;
   }
 
@@ -116,17 +113,17 @@ export class MapComponent implements OnInit {
   }
 
   generateName(){
-    const firstname = ["Alex","Rocky","Pedro","Charlie","Nataly","Robert","Cris","Natasha","Ramon","David","Marco","Alexander"];
 
+    const firstname = ["Alex","Rocky","Pedro","Charlie","Nataly","Robert","Cris","Natasha","Ramon","David","Marco","Alexander"];
     const lastname = ["Santos","Sanchez","Stone","White","Williams","Lieuwe", 'Evans', 'Kent', 'Mcan', 'Nest', 'River', 'Alf'];
 
     const name = this.capFirst(firstname[this.getRandomInt(0, firstname.length + 1)]) + ' ' + this.capFirst(lastname[this.getRandomInt(0, lastname.length + 1)]);
     return name;
+
   }
 
   createMarkert(): void {
     
-
     const customMarkert: Place = {
       id: new Date().toISOString(),
       lng: -75.75512993582937,
@@ -136,9 +133,9 @@ export class MapComponent implements OnInit {
     }
 
     this.addMarcador( customMarkert );
-
     /**Emitir Marcador nuevo */
     this.webSocketService.sendEmit('new-market', customMarkert );
+
   }
 }
 
