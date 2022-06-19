@@ -52,7 +52,7 @@ export class MapComponent implements OnInit {
     this.map = new mapboxgl.Map({
       container: 'map', // container ID
       style: 'mapbox://styles/mapbox/streets-v11', // style URL
-      center: [-75.75512993582937, 45.349977429009954], // starting position [lng, lat]
+      center: [-82.5726796, 28.0634744], // starting position [lng, lat]
       zoom: 15.8 // starting zoom
     });
 
@@ -126,8 +126,8 @@ export class MapComponent implements OnInit {
     
     const customMarkert: Place = {
       id: new Date().toISOString(),
-      lng: -75.75512993582937,
-      lat: 45.349977429009954,
+      lng: -82.572600, 
+      lat: 28.0634744,
       name: this.generateName(),
       color: '#' + Math.floor(Math.random()*16777215).toString(16)
     }
