@@ -1,6 +1,13 @@
+import { HttpClient } from '@angular/common/http';
 import { Component, OnInit } from '@angular/core';
 import * as mapboxgl from 'mapbox-gl';
 import { Place } from 'src/app/interfaces/interfaces';
+import { WebsocketService } from 'src/app/services/websocket.service';
+import { environment } from 'src/environments/environment';
+
+interface Response {
+  [key:string]: Place
+}
 
 @Component({
   selector: 'app-map',
@@ -9,33 +16,39 @@ import { Place } from 'src/app/interfaces/interfaces';
 })
 export class MapComponent implements OnInit {
   map!: mapboxgl.Map;
-  places: Place[] = [{
-    id: '1',
-    name: 'Fernando',
-    lng: -75.75512993582937,
-    lat: 45.349977429009954,
-    color: '#dd8fee'
-  },
-  {
-    id: '2',
-    name: 'Amy',
-    lng: -75.75195645527508, 
-    lat: 45.351584045823756,
-    color: '#790af0'
-  },
-  {
-    id: '3',
-    name: 'Orlando',
-    lng: -75.75900589557777, 
-    lat: 45.34794635758547,
-    color: '#19884b'
-  }];
+  places: Response = {};
+  markersMb: { [id:string]: mapboxgl.Marker } = {};
   
   
-  constructor() { }
+  constructor( 
+    private http: HttpClient,
+    private webSocketService:WebsocketService 
+  ) { }
 
   ngOnInit(): void {
-    this.createMap();
+    this.http.get<Response>(`${environment.url}/map`).subscribe( places => {
+      console.log(places);
+      
+      this.places = places;
+      this.createMap();
+    });
+    this.listenSockets();
+  }
+
+  listenSockets() {
+    //marcador-nuevo
+    this.webSocketService.listen('new-market').subscribe( (markert:any) =>  this.addMarcador(markert) );
+
+    //se mueve
+
+
+    //borrar
+    this.webSocketService.listen('remove-marker').subscribe( ( id : any ) => {
+      this.markersMb[id].remove();
+      delete this.markersMb[id];
+    });
+
+
   }
 
   createMap() {
@@ -47,7 +60,8 @@ export class MapComponent implements OnInit {
       zoom: 15.8 // starting zoom
     });
 
-    for(  const mark of this.places ) {
+    for(  const [key,mark] of Object.entries(this.places) ) {
+      // console.log(mark);
       this.addMarcador( mark );
     }
 
@@ -55,13 +69,20 @@ export class MapComponent implements OnInit {
 
 
   addMarcador( mark:Place ) {
+    
+    const h2 = document.createElement('h2');
+    h2.innerText = mark.name;
 
-    const html = `<h2>${ mark.name }</h2><br><button>Remove</button>`;
+    const btnRemove = document.createElement('button');
+    btnRemove.innerText = 'Borrar';
+
+    const div = document.createElement('div');
+    div.append(h2, btnRemove);
 
     const customPopup = new mapboxgl.Popup({
       offset: 25,
       closeOnClick: false
-    }).setHTML( html );
+    }).setDOMContent( div );
 
     const markert = new mapboxgl.Marker({
       draggable: true,
@@ -73,22 +94,51 @@ export class MapComponent implements OnInit {
 
     markert.on('drag', () => {
       const lngLat = markert.getLngLat();
-      console.log( lngLat );
       //TODO: create event to emit the coords 
     });
+
+    btnRemove.addEventListener('click', () => {
+      
+      markert.remove();
+
+      this.webSocketService.sendEmit('remove-marker', mark.id);
+    });
+
+    this.markersMb[mark.id] = markert;
+  }
+
+  capFirst(string: string) {
+    return string.charAt(0).toUpperCase() + string.slice(1);
+  }
+
+  getRandomInt(min: any, max: any) {
+  	return Math.floor(Math.random() * (max - min)) + min;
+  }
+
+  generateName(){
+    const firstname = ["Alex","Rocky","Pedro","Charlie","Nataly","Robert","Cris","Natasha","Ramon","David","Marco","Alexander"];
+
+    const lastname = ["Santos","Sanchez","Stone","White","Williams","Lieuwe", 'Evans', 'Kent', 'Mcan', 'Nest', 'River', 'Alf'];
+
+    const name = this.capFirst(firstname[this.getRandomInt(0, firstname.length + 1)]) + ' ' + this.capFirst(lastname[this.getRandomInt(0, lastname.length + 1)]);
+    return name;
   }
 
   createMarkert(): void {
+    
 
     const customMarkert: Place = {
       id: new Date().toISOString(),
       lng: -75.75512993582937,
       lat: 45.349977429009954,
-      name: 'No name',
+      name: this.generateName(),
       color: '#' + Math.floor(Math.random()*16777215).toString(16)
     }
 
     this.addMarcador( customMarkert );
 
+    /**Emitir Marcador nuevo */
+    this.webSocketService.sendEmit('new-market', customMarkert );
   }
 }
+
